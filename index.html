@@ -238,7 +238,7 @@
       if (streaming && currentStream) currentStream.close();
       streaming = false;
 
-      await fetch("/clear", { method: "POST" }).catch(() => {});
+      await fetch("https://ai-smartassistant.onrender.com/clear", { method: "POST" }).catch(() => {});
       messagesEl.innerHTML = "";
       addMessage("bot", "Memory cleared ✅ What do you want to do next?");
     }
@@ -260,7 +260,7 @@
       sendBtn.disabled = true;
 
       // Stream tokens via SSE
-      const url = `/chat-stream?mode=${encodeURIComponent(mode)}&message=${encodeURIComponent(text)}`;
+      const url = `https://ai-smartassistant.onrender.com/chat-stream?mode=${encodeURIComponent(mode)}&message=${encodeURIComponent(text)}`;
       const es = new EventSource(url);
       currentStream = es;
 
@@ -297,3 +297,4 @@
   </script>
 </body>
 </html>
+
