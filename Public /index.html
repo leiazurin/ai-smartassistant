@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi AI Assistant</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #0f172a;
+      --border: #23304a;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #38bdf8;
+      --user: #1f2937;
+      --bot: #0b1f2a;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: Arial, sans-serif;
+      color: var(--text);
+    }
+
+    #app {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 12px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 48px);
+      min-height: 620px;
+    }
+
+    header {
+      padding: 14px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header .left {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .title {
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    select, button {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: transparent;
+      background: var(--accent);
+      color: #06121a;
+      font-weight: 700;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin: 12px 0;
+      align-items: flex-start;
+    }
+
+    .row.user {
+      flex-direction: row-reverse;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      user-select: none;
+    }
+
+    .bubble {
+      max-width: 78%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .row.user .bubble {
+      background: var(--user);
+    }
+
+    .row.bot .bubble {
+      background: var(--bot);
+      border-color: rgba(56,189,248,0.25);
+    }
+
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 2px 2px 0 2px;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    input {
+      flex: 1;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      outline: none;
+      font-size: 15px;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 14px 12px 14px;
+      border-top: 1px solid rgba(0,0,0,0);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <div class="card">
+      <header>
+        <div class="left">
+          <div class="title">AI Assistant</div>
+          <select id="mode">
+            <option value="customer_support">Customer Support</option>
+            <option value="study_helper">Study Helper</option>
+            <option value="business_assistant">Business Assistant</option>
+            <option value="virtual_assistant" selected>Virtual Assistant</option>
+            <option value="interview_ai">Interview AI</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button id="clearBtn" title="Clear conversation memory">Clear</button>
+        </div>
+      </header>
+
+      <div id="messages"></div>
+
+      <div class="hint">
+        Tip: press <b>Enter</b> to send • This chat remembers your conversation (until you clear or close for a long time).
+      </div>
+
+      <footer>
+        <input id="input" placeholder="Message..." />
+        <button class="primary" id="sendBtn">Send</button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    const messagesEl = document.getElementById("messages");
+    const inputEl = document.getElementById("input");
+    const modeEl = document.getElementById("mode");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    let streaming = false;
+    let currentStream = null;
+
+    function scrollBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function addMessage(role, text) {
+      const row = document.createElement("div");
+      row.className = `row ${role}`;
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.textContent = role === "user" ? "You" : "AI";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text || "";
+
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+
+      messagesEl.appendChild(row);
+      scrollBottom();
+
+      return bubble; // return bubble so we can stream into it
+    }
+
+    // Welcome
+    addMessage("bot", "Hi! Pick a mode and ask me anything.");
+
+    async function clearMemory() {
+      if (streaming && currentStream) currentStream.close();
+      streaming = false;
+
+      await fetch("https://ai-smartassistant.onrender.com/clear", { method: "POST" }).catch(() => {});
+      messagesEl.innerHTML = "";
+      addMessage("bot", "Memory cleared ✅ What do you want to do next?");
+    }
+
+    clearBtn.addEventListener("click", clearMemory);
+
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text || streaming) return;
+
+      addMessage("user", text);
+      inputEl.value = "";
+
+      // Create an empty bot message bubble we will fill while streaming
+      const botBubble = addMessage("bot", "");
+
+      const mode = modeEl.value;
+      streaming = true;
+      sendBtn.disabled = true;
+
+      // Stream tokens via SSE
+      const url = `https://ai-smartassistant.onrender.com/chat-stream?mode=${encodeURIComponent(mode)}&message=${encodeURIComponent(text)}`;
+      const es = new EventSource(url);
+      currentStream = es;
+
+      es.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          if (data.token) {
+            botBubble.textContent += data.token;
+            scrollBottom();
+          }
+        } catch {}
+      };
+
+      es.addEventListener("done", () => {
+        es.close();
+        streaming = false;
+        sendBtn.disabled = false;
+        currentStream = null;
+      });
+
+      es.addEventListener("error", () => {
+        es.close();
+        streaming = false;
+        sendBtn.disabled = false;
+        currentStream = null;
+        botBubble.textContent = botBubble.textContent || "Error: couldn’t stream response. Is Ollama running?";
+      });
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+</body>
+</html>
+
+
